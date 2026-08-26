@@ -1,0 +1,34 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Audio outputs
+*.wav
+*.mp3
+*.flac
+*.ogg
+output/
+audio_output/
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Kokoro & HuggingFace local caches (optional local models)
+checkpoints/
+models/
