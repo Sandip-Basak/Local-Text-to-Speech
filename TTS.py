@@ -1,16 +1,6 @@
 """
 TTS.py - Local Text-to-Speech using Kokoro-82M (PyTorch Version)
-
-This module provides a local, natural-sounding Text-to-Speech (TTS) engine
-powered by the open-weight Kokoro-82M model using PyTorch.
-
-Key Features:
-- Natural human-like prosody with proper punctuation handling (!, ?, ..., commas).
-- Intelligent sentence-level chunking for low-latency streaming & memory efficiency.
-- Real-time audio playback chunk-by-chunk as it generates.
-- Seamless audio concatenation with natural conversational pauses.
-- Automatic device detection (CUDA GPU / CPU).
-- Support for voice blending and voice selection.
+Asynchronous Pipelined Streaming Edition
 """
 
 import os
@@ -18,6 +8,8 @@ import sys
 import time
 import re
 import argparse
+import threading
+import queue
 from typing import List, Generator, Tuple, Optional
 import numpy as np
 import soundfile as sf
@@ -110,7 +102,7 @@ class KokoroTTS:
     def chunk_text(text: str, max_chars: int = 250) -> List[str]:
         """
         Intelligently split a large paragraph into natural conversational chunks.
-        
+
         Preserves natural pause markers like:
         - Ellipses (...) for contemplative or hesitant pauses
         - Exclamation marks (!) for emotional inflection
@@ -162,7 +154,6 @@ class KokoroTTS:
     ) -> Generator[Tuple[int, str, np.ndarray, float], None, None]:
         """
         Generator that chunks text and yields audio arrays sequentially.
-
         :param text: Input text (single sentence or entire multi-sentence paragraph).
         :param voice: Voice ID or blend to use (e.g., 'af_heart', 'am_adam', 'af_heart+af_bella').
         :param speed: Speech speed multiplier.
@@ -220,7 +211,7 @@ class KokoroTTS:
         total_chunks = len(chunks)
 
         print("\n" + "=" * 70)
-        print(f"🎙️  Kokoro TTS Synthesis Started")
+        print(f"🎙️  Kokoro TTS Pipelined Synthesis Started")
         print(f"   Voice: {selected_voice} | Speed: {selected_speed}x | Device: {self.device.upper()}")
         print(f"   Total text chunks to process: {total_chunks}")
         print("=" * 70 + "\n")
@@ -229,8 +220,33 @@ class KokoroTTS:
         silence_samples = int(self.sample_rate * (pause_between_chunks_ms / 1000.0))
         silence_gap = np.zeros(silence_samples, dtype=np.float32)
 
+        # Buffer queue for audio chunks awaiting playback
+        playback_queue = queue.Queue()
+        playback_error = []
+
+        def playback_consumer():
+            """Dedicated consumer thread to stream audio chunks sequentially."""
+            while True:
+                item = playback_queue.get()
+                if item is None:  # Sentinel value signaling end of stream
+                    playback_queue.task_done()
+                    break
+                try:
+                    sd.play(item, samplerate=self.sample_rate)
+                    sd.wait()  # Blocks only the playback worker thread, NOT model inference
+                except Exception as e:
+                    playback_error.append(e)
+                finally:
+                    playback_queue.task_done()
+
+        playback_thread = None
+        if play_audio and AUDIO_PLAYBACK_AVAILABLE:
+            playback_thread = threading.Thread(target=playback_consumer, daemon=True)
+            playback_thread.start()
+
         total_gen_start = time.time()
 
+        # Producer Loop: Continuously generates audio without waiting on speaker output
         for idx, chunk_text, audio_array, latency in self.generate_chunks(
             text, voice=selected_voice, speed=selected_speed
         ):
@@ -244,15 +260,22 @@ class KokoroTTS:
                 all_audio_segments.append(audio_array)
                 all_audio_segments.append(silence_gap)
 
-                # Stream audio playback in real-time
+                # Append silence pause to chunk for smooth playback transition
+                chunk_to_play = np.concatenate([audio_array, silence_gap]) if len(silence_gap) > 0 else audio_array
+
+                # Push to playback queue immediately (Non-blocking)
                 if play_audio and AUDIO_PLAYBACK_AVAILABLE:
-                    try:
-                        sd.play(audio_array, samplerate=self.sample_rate)
-                        sd.wait()  # Wait for chunk playback before next chunk
-                    except Exception as e:
-                        print(f"    ⚠️ Playback warning: {e}")
+                    playback_queue.put(chunk_to_play)
 
         total_time = time.time() - total_gen_start
+
+        # Signal consumer thread that generation is complete, then wait for buffer to drain
+        if play_audio and AUDIO_PLAYBACK_AVAILABLE and playback_thread:
+            playback_queue.put(None)
+            playback_thread.join()
+
+        if playback_error:
+            print(f"    ⚠️ Playback warning: {playback_error[0]}")
 
         if all_audio_segments:
             final_audio = np.concatenate(all_audio_segments)
