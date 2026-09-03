@@ -1,6 +1,6 @@
 # 🎙️ Local Text-to-Speech (TTS) with Kokoro-82M (PyTorch)
 
-A fast, lightweight, and natural-sounding local Text-to-Speech engine using the **Kokoro-82M** PyTorch model. Designed specifically for low-latency conversational voice agents, podcast narration, and local AI prototyping.
+A fast, lightweight, and natural-sounding local Text-to-Speech engine using the **Kokoro-82M** PyTorch model. Designed specifically for low-latency conversational voice agents, real-time LLM streaming pipelines, podcast narration, and local AI prototyping.
 
 ---
 
@@ -8,11 +8,12 @@ A fast, lightweight, and natural-sounding local Text-to-Speech engine using the 
 
 **Kokoro-82M** is an open-weight, high-quality TTS model with only **82 million parameters**. Despite its compact size, it rivals large commercial TTS cloud APIs in voice quality, natural cadence, and human-like inflection.
 
-- ⚡ **Ultra-Fast & Lightweight**: Minimal VRAM and CPU footprint; runs smoothly on consumer GPUs and modern CPUs.
+- ⚡ **Ultra-Fast & Lightweight**: Minimal VRAM and CPU footprint; runs smoothly on consumer GPUs and modern CPUs with Real-Time Factors (RTF) well under 0.3x.
 - 🎧 **Studio-Quality Audio**: Native **24 kHz** sample rate output with clear pronunciation and rich vocal tone.
 - 🎭 **Expressive Prosody**: Dynamically responds to punctuation (commas, ellipses, exclamation marks, question marks) to convey realistic emotion and pacing.
 - 🔒 **100% Local & Private**: All speech synthesis occurs entirely on your device with zero API keys or recurring cloud costs.
 - 🎛️ **Voice Blending**: Easily mix multiple voice styles together (e.g., combining warmth and energy).
+- 🌐 **Real-Time Bidirectional Streaming**: Dedicated WebSocket API for token-by-token LLM output streaming with live PCM audio playback.
 
 ---
 
@@ -20,9 +21,14 @@ A fast, lightweight, and natural-sounding local Text-to-Speech engine using the 
 
 ```
 .
-├── TTS.py              # Main Kokoro TTS engine & CLI script
+├── api.py              # FastAPI real-time WebSocket streaming server & Web Playground
+├── client_example.py   # Python example client demonstrating LLM token streaming & live playback
+├── TTS.py              # Main Kokoro TTS engine & CLI synthesis script
+├── Dockerfile          # Production Dockerfile (CUDA GPU acceleration + CPU fallback)
+├── docker-compose.yml  # Docker Compose definition with GPU reservation & health checks
+├── .dockerignore       # Docker build context exclusions
 ├── requirements.txt    # Python dependencies
-├── .gitignore          # Git ignore rules for venv and audio outputs
+├── .gitignore          # Git ignore rules for venv, models, and audio outputs
 └── README.md           # Documentation and usage guide
 ```
 
@@ -40,12 +46,6 @@ A fast, lightweight, and natural-sounding local Text-to-Speech engine using the 
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-```
-
-**Windows (Command Prompt):**
-```cmd
-python -m venv venv
-venv\Scripts\activate.bat
 ```
 
 **Linux / macOS:**
@@ -69,30 +69,169 @@ pip install -r requirements.txt
 
 ---
 
-## 🏃 Running the TTS Engine
+## ⚡ Real-Time Streaming WebSocket API
 
-### 1. Default Run (15-Sentence Test Paragraph)
-Running `TTS.py` without arguments synthesizes a rich, 15-sentence conversational paragraph demonstrating natural pauses, ellipses, and expressive inflections. It plays the audio through your speakers in real-time as chunks are generated, and saves the final full output to `output.wav`.
+The project includes a high-performance **FastAPI** server (`api.py`) featuring:
+- **Full-Duplex WebSockets**: Stream text tokens from LLMs word-by-word; audio streams back continuously.
+- **Intelligent Clause Chunker**: Automatically detects commas, ellipses, and sentence endings on the fly to maximize prosody and minimize latency.
+- **Sub-Second First-Audio Latency (TTFA)**: Audio playback begins as soon as the first clause is ready (~100-200ms on GPU, ~600ms on CPU).
+- **Barge-in / Interruption Support**: Send an interrupt signal to instantly stop synthesis when the user speaks.
+- **Built-in Web Playground**: An interactive browser UI served at `http://localhost:8001` to test streaming and listen to output in real time.
+
+### Starting the Streaming Server
 
 ```bash
-python TTS.py
+# Run with Python
+python api.py
+
+# Or run with Uvicorn directly
+uvicorn api:app --host 0.0.0.0 --port 8001
+```
+
+Once started:
+- 🌐 **Web Playground**: Open [http://localhost:8001](http://localhost:8001) in your browser.
+- 🔌 **WebSocket Endpoint**: `ws://localhost:8001/ws/tts` (or `ws://localhost:8001/ws/stream`)
+- 🩺 **Health Check**: [http://localhost:8001/health](http://localhost:8001/health)
+- 🎭 **Voice Catalog**: [http://localhost:8001/voices](http://localhost:8001/voices)
+
+---
+
+### WebSocket Protocol Specification (`/ws/tts`)
+
+#### Query Parameters:
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `voice` | `af_heart` | Voice identifier or blend (e.g. `af_heart`, `am_adam`) |
+| `speed` | `1.0` | Speech speed multiplier (0.5 to 2.0) |
+| `format` | `pcm` | Audio format: `pcm` (raw 16-bit 24kHz mono PCM), `wav` (WAV chunks), or `json` (base64) |
+| `lang` | `a` | Language code: `a` (US English) or `b` (UK English) |
+
+#### Client-to-Server Messages (JSON):
+```json
+// 1. Send incremental text tokens (as generated by your LLM)
+{"type": "text", "text": "Hello world! "}
+
+// 2. Signal that the LLM response stream has finished
+{"type": "flush"}
+
+// 3. Barge-in / Interrupt (immediately cancels ongoing synthesis and clears queues)
+{"type": "interrupt"}
+
+// 4. Dynamically adjust voice or speed mid-session
+{"type": "config", "voice": "am_adam", "speed": 1.1}
+```
+
+#### Server-to-Client Responses:
+- **Binary Frames**: When `format=pcm`, the server yields raw signed 16-bit linear PCM bytes (24,000 Hz, mono) directly for seamless playback.
+- **JSON Control Events**:
+  - `{"type": "connected", "sample_rate": 24000, "voice": "af_heart", "device": "cuda"}`
+  - `{"type": "chunk_start", "chunk_id": 1, "text": "Hello world!"}`
+  - `{"type": "chunk_end", "chunk_id": 1, "latency_ms": 65, "duration_sec": 1.5, "rtf": 0.043}`
+  - `{"type": "done", "total_chunks": 3, "total_duration_sec": 4.5, "rtf": 0.05}`
+  - `{"type": "interrupted"}`
+
+---
+
+### Running the Streaming Python Client Example
+
+`client_example.py` connects to the WebSocket API, simulates token-by-token LLM output, receives audio frames, plays them through your speakers live, and saves the final audio to a WAV file:
+
+```bash
+# Basic run with live audio playback
+python client_example.py
+
+# Custom text and voice
+python client_example.py --voice am_adam --text "The future of voice AI is local, fast, and private."
+
+# Adjust simulated LLM token streaming delay
+python client_example.py --token-delay 0.03 --output output_stream.wav
+
+# Headless mode (no speaker playback, save to file only)
+python client_example.py --no-play --output speech.wav
 ```
 
 ---
+
+## 🐳 Docker & Docker Compose Deployment
+
+The project provides a production-grade Docker setup pre-configured for **NVIDIA CUDA GPU acceleration** with **automatic CPU fallback**.
+
+### Key Docker Highlights:
+- **Zero Cold-Start Latency**: Model weights for Kokoro-82M are pre-cached during `docker build`, so the container launches immediately and runs fully offline.
+- **Automatic Accelerator Detection**: Runs on NVIDIA GPUs via the NVIDIA Container Toolkit or falls back seamlessly to CPU.
+- **Built-in Health Checks**: Container monitors `/health` endpoint every 30s.
+
+### Option 1: Docker Compose (Recommended)
+
+1. **Deploy with GPU support (Default)**:
+   ```bash
+   docker compose up --build -d
+   ```
+
+2. **Deploy on CPU-only servers**:
+   If your server does not have NVIDIA GPUs or the NVIDIA Container Toolkit, open `docker-compose.yml` and comment out the `deploy:` block, then run:
+   ```bash
+   docker compose up --build -d
+   ```
+
+3. **Check logs and status**:
+   ```bash
+   docker compose logs -f
+   ```
+
+4. **Stop the container**:
+   ```bash
+   docker compose down
+   ```
+
+### Option 2: Docker CLI
+
+**Build the image:**
+```bash
+docker build -t kokoro-tts:latest .
+```
+
+**Run with NVIDIA GPU acceleration:**
+```bash
+docker run -d \
+  --name kokoro_tts \
+  --gpus all \
+  -p 8001:8001 \
+  --restart unless-stopped \
+  kokoro-tts:latest
+```
+
+**Run on CPU:**
+```bash
+docker run -d \
+  --name kokoro_tts \
+  -p 8001:8001 \
+  --restart unless-stopped \
+  kokoro-tts:latest
+```
+
+Once running, access the Web Playground at `http://<server-ip>:8001` or stream to `ws://<server-ip>:8001/ws/tts`.
+
+---
+
+## 🏃 Running the CLI TTS Engine Directly
+
+You can also use `TTS.py` directly without the API server:
+
+### 1. Default Run (15-Sentence Test Paragraph)
+```bash
+python TTS.py
+```
 
 ### 2. Synthesize Custom Text
 ```bash
 python TTS.py --text "Hello! This is a test of natural voice generation... Pretty impressive, isn't it?"
 ```
 
----
-
 ### 3. Read from a Text File
 ```bash
 python TTS.py --file path/to/script.txt --output story.wav
 ```
-
----
 
 ### 4. Select Different Voices
 ```bash
@@ -106,25 +245,17 @@ python TTS.py --voice af_bella --text "Good morning! Let's get started right awa
 python TTS.py --voice bf_emma --lang b --text "Good afternoon, it's an absolute pleasure."
 ```
 
----
-
 ### 5. Voice Blending
-Blend two or more voices by specifying their names and optional weights:
 ```bash
 python TTS.py --voice "af_heart(0.7)+af_bella(0.3)" --text "This voice blends warmth with conversational energy."
 ```
 
----
-
 ### 6. Adjust Speed & Headless Mode
 ```bash
-# Speed up speech (1.15x) and disable live audio playback
 python TTS.py --speed 1.15 --no-play --output fast_speech.wav
 ```
 
----
-
-### 7. List All Available Recommended Voices
+### 7. List All Available Voices
 ```bash
 python TTS.py --list-voices
 ```
@@ -165,45 +296,6 @@ Kokoro-82M interprets standard punctuation to control pitch, cadence, and breath
 
 **Example of Conversational Text:**
 > *"Well... to be completely honest, I didn't expect that to happen! But don't worry, we can solve this together."*
-
----
-
-## 🧩 Voice Agent Integration (Python API)
-
-You can import `KokoroTTS` directly into your voice agent or LLM streaming pipeline:
-
-```python
-from TTS import KokoroTTS
-
-# 1. Initialize engine once (caches model in memory/GPU)
-tts = KokoroTTS(voice="af_heart", speed=1.0)
-
-# 2. Stream generation for incoming LLM tokens or sentences
-incoming_llm_response = (
-    "I just analyzed your data! Everything looks great, "
-    "and we are ready to move on to the next phase."
-)
-
-# 3. Generate and stream chunks
-for chunk_idx, chunk_text, audio_numpy, latency in tts.generate_chunks(incoming_llm_response):
-    print(f"Chunk {chunk_idx}: '{chunk_text}' (generated in {latency:.2f}s)")
-    # Send audio_numpy directly to audio stream / WebSocket / WebRTC
-```
-
----
-
-## 🛠️ CLI Options Reference
-
-| Argument | Short | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `--text` | `-t` | Built-in test paragraph | Text string to synthesize |
-| `--file` | `-f` | `None` | Text file to read and synthesize |
-| `--voice` | `-v` | `af_heart` | Voice identifier or blend string |
-| `--speed` | `-s` | `1.0` | Speech playback rate multiplier |
-| `--output` | `-o` | `output.wav` | Destination path for saved audio |
-| `--no-play` | | `False` | Disable real-time speaker playback |
-| `--lang` | | `a` | Language code (`a` = US English, `b` = UK English) |
-| `--list-voices`| | `False` | Display the recommended voice catalog |
 
 ---
 

@@ -1,0 +1,38 @@
+# Git
+.git/
+.gitignore
+
+# Python virtual environment and bytecode
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Audio outputs & test artifacts
+*.wav
+*.mp3
+*.flac
+*.ogg
+output/
+audio_output/
+streamed_output.wav
+output.wav
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs & temp files
+*.log
+scratch/

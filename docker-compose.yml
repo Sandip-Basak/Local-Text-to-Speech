@@ -1,0 +1,30 @@
+services:
+  kokoro-tts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kokoro-tts:latest
+    container_name: kokoro_streaming_tts
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8001
+      - DEVICE=auto               # 'auto' auto-detects CUDA GPU vs CPU; or force 'cuda' / 'cpu'
+      - DEFAULT_VOICE=af_heart    # Default flagship voice
+    # NVIDIA GPU Acceleration
+    # If running on a CPU-only server without NVIDIA Container Toolkit, comment out the 'deploy' section below.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
