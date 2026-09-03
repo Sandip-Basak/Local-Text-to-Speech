@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kokoro-82M TTS API Testing Workbench</title>
+  <style>
+    :root {
+      --bg-base: #0a0d14;
+      --bg-surface: #111726;
+      --bg-surface-elevated: #1a2236;
+      --bg-input: #0d121f;
+      --border-subtle: #1f2a40;
+      --border-highlight: #334366;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.25);
+      --success: #10b981;
+      --success-hover: #059669;
+      --success-glow: rgba(16, 185, 129, 0.25);
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --danger-glow: rgba(239, 68, 68, 0.25);
+      --warning: #f59e0b;
+      --cyan: #06b6d4;
+      --purple: #a855f7;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .app-wrapper {
+      width: 100%;
+      max-width: 1380px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header & Server Config Bar */
+    header {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      font-size: 1.75rem;
+      background: linear-gradient(135deg, #6366f1, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .brand-text p {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .server-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      padding: 2px 8px;
+    }
+
+    .input-group span {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-right: 6px;
+      font-weight: 600;
+    }
+
+    .input-group input {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      padding: 6px 4px;
+      font-family: var(--font-mono);
+      min-width: 220px;
+    }
+
+    .input-group input:focus {
+      outline: none;
+    }
+
+    .connection-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .dot.connecting {
+      background: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    .dot.disconnected {
+      background: var(--danger);
+    }
+
+    /* Layout Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 1080px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panel and Card Styles */
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+    }
+
+    .panel-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(26, 34, 54, 0.5);
+    }
+
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+    }
+
+    .panel-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: normal;
+    }
+
+    .panel-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Form Elements */
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .field label .val-tag {
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-weight: normal;
+    }
+
+    select, input[type="text"], input[type="number"], textarea {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 9px 12px;
+      font-size: 0.85rem;
+      transition: all 0.15s ease;
+      width: 100%;
+    }
+
+    select:focus, input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-glow);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 105px;
+      line-height: 1.5;
+      font-family: inherit;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--bg-input);
+      border-radius: 3px;
+      outline: none;
+      margin: 10px 0;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--cyan);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+    }
+
+    /* Quick Prompt Pills */
+    .prompt-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .pill-btn {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      border-radius: 12px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pill-btn:hover {
+      background: var(--border-highlight);
+      color: #fff;
+    }
+
+    /* Action Buttons */
+    .button-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 9px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-success:hover:not(:disabled) {
+      background: var(--success-hover);
+      box-shadow: 0 0 12px var(--success-glow);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: var(--danger-hover);
+      box-shadow: 0 0 12px var(--danger-glow);
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--border-highlight);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Metrics HUD */
+    .metrics-hud {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px;
+    }
+
+    .metric-card {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metric-title {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .metric-val {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+    }
+
+    .metric-val.highlight-green { color: var(--success); }
+    .metric-val.highlight-cyan { color: var(--cyan); }
+    .metric-val.highlight-purple { color: var(--purple); }
+
+    /* Audio Player Section */
+    .audio-playback-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      flex-wrap: wrap;
+    }
+
+    .playback-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .visualizer-wave {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 16px;
+    }
+
+    .wave-bar {
+      width: 3px;
+      height: 4px;
+      background: var(--primary);
+      border-radius: 2px;
+      transition: height 0.1s ease;
+    }
+
+    .visualizer-wave.active .wave-bar:nth-child(1) { animation: bounce 0.6s infinite alternate ease-in-out; }
+    .visualizer-wave.active .wave-bar:nth-child(2) { animation: bounce 0.8s infinite 0.1s alternate ease-in-out; }
+    .visualizer-wave.active .wave-bar:nth-child(3) { animation: bounce 0.5s infinite 0.2s alternate ease-in-out; }
+    .visualizer-wave.active .wave-bar:nth-child(4) { animation: bounce 0.7s infinite 0.3s alternate ease-in-out; }
+
+    @keyframes bounce {
+      from { height: 4px; }
+      to { height: 16px; }
+    }
+
+    /* REST API Explorer Cards */
+    .endpoint-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .endpoint-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .endpoint-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    .method-get {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .method-ws {
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .endpoint-result {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      max-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Voices Catalog Viewer */
+    .voices-catalog {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 210px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .voice-group-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+
+    .voice-chips-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .voice-chip {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.12s ease;
+    }
+
+    .voice-chip:hover {
+      background: var(--primary-hover);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    /* Live Event Logs */
+    .log-container {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      height: 260px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-row {
+      display: flex;
+      gap: 8px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .log-tag {
+      font-weight: 700;
+      flex-shrink: 0;
+      font-size: 0.7rem;
+      padding: 0 4px;
+      border-radius: 3px;
+    }
+
+    .tag-ws { background: #1e1b4b; color: #818cf8; }
+    .tag-audio { background: #064e3b; color: #34d399; }
+    .tag-synth { background: #164e63; color: #38bdf8; }
+    .tag-err { background: #450a0a; color: #f87171; }
+    .tag-http { background: #3b0764; color: #c084fc; }
+
+    .log-text { color: var(--text-primary); }
+    .log-dim { color: var(--text-muted); }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-wrapper">
+  <!-- Top Navigation / Server Bar -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-text">
+        <h1>Kokoro-82M Streaming TTS Workbench</h1>
+        <p>Ultra-low latency bidirectional WebSocket & REST API testing environment</p>
+      </div>
+    </div>
+
+    <div class="server-control">
+      <div class="input-group">
+        <span>HOST</span>
+        <input type="text" id="serverHostInput" value="" placeholder="http://localhost:8001" />
+      </div>
+      <button class="btn btn-secondary" onclick="checkAllEndpoints()">⚡ Probe Server</button>
+      <div class="connection-badge">
+        <span class="dot" id="globalStatusDot"></span>
+        <span id="globalStatusText">Idle</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <div class="dashboard-grid">
+    
+    <!-- LEFT: WebSocket Streaming TTS Workbench -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>🎙️ WebSocket Streaming TTS</span>
+          <span class="panel-subtitle">(/ws/tts, /ws/stream)</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <select id="endpointRoute" style="width: auto; padding: 4px 8px; font-size: 0.75rem;">
+            <option value="/ws/tts">Endpoint: /ws/tts</option>
+            <option value="/ws/stream">Endpoint: /ws/stream</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        
+        <!-- Voice, Speed, Format, Lang Configuration -->
+        <div class="form-row">
+          <div class="field" style="grid-column: span 2;">
+            <label for="voiceSelect">
+              <span>Voice Selection</span>
+              <span class="val-tag" id="voiceValTag">af_heart</span>
+            </label>
+            <select id="voiceSelect" onchange="onVoiceSelectChanged()">
+              <!-- Default voice options; dynamically updated by GET /voices -->
+              <optgroup label="✨ Flagship / Recommended">
+                <option value="af_heart" selected>af_heart (Warm, Natural Female - Flagship)</option>
+                <option value="am_adam">am_adam (Deep, Friendly Male - Flagship)</option>
+              </optgroup>
+              <optgroup label="🇺🇸 American English">
+                <option value="af_bella">af_bella (Energetic Female)</option>
+                <option value="af_nicole">af_nicole (Calm, Whisper Female)</option>
+                <option value="af_sarah">af_sarah (Expressive Female)</option>
+                <option value="af_sky">af_sky (Bright Female)</option>
+                <option value="am_michael">am_michael (Engaging Male)</option>
+                <option value="am_echo">am_echo (Smooth Narrator Male)</option>
+                <option value="am_eric">am_eric (Crisp Male)</option>
+                <option value="am_liam">am_liam (Authoritative Male)</option>
+              </optgroup>
+              <optgroup label="🇬🇧 British English">
+                <option value="bf_emma">bf_emma (Sophisticated British Female)</option>
+                <option value="bf_isabella">bf_isabella (Polished British Female)</option>
+                <option value="bm_george">bm_george (Distinguished British Male)</option>
+                <option value="bm_lewis">bm_lewis (Contemporary British Male)</option>
+              </optgroup>
+              <optgroup label="🎨 Voice Blends (Multi-Speaker)">
+                <option value="af_heart(0.7)+af_bella(0.3)">Blend: Heart (70%) + Bella (30%)</option>
+                <option value="am_adam(0.6)+am_echo(0.4)">Blend: Adam (60%) + Echo (40%)</option>
+                <option value="af_heart(0.5)+bf_emma(0.5)">Blend: Heart (50%) + Emma (50%)</option>
+              </optgroup>
+              <option value="__custom__">⚙️ Custom blend string...</option>
+            </select>
+          </div>
+
+          <div class="field" id="customBlendField" style="display: none; grid-column: span 2;">
+            <label for="customBlendInput">Custom Voice Blend Syntax</label>
+            <input type="text" id="customBlendInput" placeholder="e.g. af_heart(0.6)+af_nicole(0.4)" onchange="applyCustomBlend()" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="speedRange">
+              <span>Speed Multiplier</span>
+              <span class="val-tag" id="speedDisplay">1.00x</span>
+            </label>
+            <input type="range" id="speedRange" min="0.5" max="2.0" step="0.05" value="1.0" oninput="onSpeedChanged(this.value)" />
+          </div>
+
+          <div class="field">
+            <label for="formatSelect">Audio Payload Format</label>
+            <select id="formatSelect" onchange="onFormatChanged()">
+              <option value="pcm" selected>pcm (Raw 16-bit PCM @ 24kHz)</option>
+              <option value="wav">wav (RIFF WAV chunks)</option>
+              <option value="json">json (Base64 PCM16 in JSON)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="langSelect">Language Code</label>
+            <select id="langSelect">
+              <option value="a" selected>a (American English)</option>
+              <option value="b">b (British English)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Text Input & Simulated LLM Streaming Config -->
+        <div class="field">
+          <label for="textInput">
+            <span>Synthesis Prompt / LLM Stream Text</span>
+            <span class="val-tag" id="tokenCountTag">0 tokens</span>
+          </label>
+          <textarea id="textInput" placeholder="Type text here to stream to Kokoro-82M...">Hello there! Welcome to Kokoro-82M real-time streaming text to speech. As words are generated by your language model, they are chunked on natural boundaries and synthesized with ultra-low latency... Notice how fluid and human the voice sounds!</textarea>
+          
+          <div class="prompt-presets">
+            <button class="pill-btn" onclick="setSamplePrompt(1)">💬 Conversational Flow</button>
+            <button class="pill-btn" onclick="setSamplePrompt(2)">⚡ Quick Greeting</button>
+            <button class="pill-btn" onclick="setSamplePrompt(3)">📖 Storytelling & Clauses</button>
+            <button class="pill-btn" onclick="setSamplePrompt(4)">🤖 Technical Assistant</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="tokenDelaySelect">LLM Stream Emulation Speed</label>
+            <select id="tokenDelaySelect">
+              <option value="35">35 ms / token (Realistic Fast LLM)</option>
+              <option value="60">60 ms / token (Standard LLM)</option>
+              <option value="15">15 ms / token (High-speed Groq-style)</option>
+              <option value="0">0 ms (Instant Burst / Whole Turn)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="chunkSendMode">Stream Transmission Mode</label>
+            <select id="chunkSendMode">
+              <option value="json" selected>JSON Payload ({"type": "text", "text": "..."})</option>
+              <option value="raw">Raw Text Strings</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Primary Action Buttons -->
+        <div class="button-bar">
+          <button id="streamBtn" class="btn btn-success" onclick="startStreamingSimulation()">
+            ▶️ Stream & Synthesize (LLM Mode)
+          </button>
+          <button id="interruptBtn" class="btn btn-danger" onclick="sendInterrupt()" disabled>
+            ⏹️ Interrupt (Barge-in)
+          </button>
+          <button id="flushBtn" class="btn btn-secondary" onclick="sendFlushCommand()" disabled>
+            📤 Send Flush
+          </button>
+          <button class="btn btn-secondary" onclick="sendPingWebSocket()">
+            🏓 Ping WS
+          </button>
+          <button id="downloadWavBtn" class="btn btn-secondary" onclick="downloadRecordedAudio()" disabled>
+            💾 Download WAV
+          </button>
+        </div>
+
+        <!-- Real-time Telemetry Metrics HUD -->
+        <div class="metrics-hud">
+          <div class="metric-card">
+            <span class="metric-title">TTFA (First Audio)</span>
+            <span class="metric-val highlight-green" id="metricTtfa">-</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">Chunks Received</span>
+            <span class="metric-val highlight-cyan" id="metricChunks">0</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">Audio Duration</span>
+            <span class="metric-val" id="metricDuration">-</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">Synth Time</span>
+            <span class="metric-val" id="metricSynthTime">-</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">Real-Time Factor</span>
+            <span class="metric-val highlight-purple" id="metricRtf">-</span>
+          </div>
+        </div>
+
+        <!-- Live Audio Playback & Visualizer Status -->
+        <div class="audio-playback-bar">
+          <div class="playback-status">
+            <div class="visualizer-wave" id="visualizer">
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+            </div>
+            <span id="audioStatusText">Audio Output: Ready (24kHz Mono)</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label style="font-size: 0.75rem; color: var(--text-muted);">VOLUME</label>
+            <input type="range" id="volumeControl" min="0" max="1" step="0.05" value="1.0" style="width: 80px; margin: 0;" oninput="setAudioVolume(this.value)" />
+            <button class="pill-btn" onclick="stopAudioPlaybackNow()">Mute / Stop</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: REST Endpoints (/health, /voices) & Live Event Logs -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- REST Endpoints Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🌐 REST API Endpoints</span>
+            <span class="panel-subtitle">(Health & Voice Catalog)</span>
+          </div>
+          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="checkAllEndpoints()">Fetch Both</button>
+        </div>
+
+        <div class="panel-body" style="gap: 12px;">
+          
+          <!-- GET /health -->
+          <div class="endpoint-card">
+            <div class="endpoint-header">
+              <div class="endpoint-tag">
+                <span class="method-get">GET</span>
+                <span>/health</span>
+              </div>
+              <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;" onclick="fetchHealthEndpoint()">Test /health</button>
+            </div>
+            <div class="endpoint-result" id="healthResultContainer">// Click "Test /health" or "Probe Server" to inspect system state...</div>
+          </div>
+
+          <!-- GET /voices -->
+          <div class="endpoint-card">
+            <div class="endpoint-header">
+              <div class="endpoint-tag">
+                <span class="method-get">GET</span>
+                <span>/voices</span>
+              </div>
+              <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;" onclick="fetchVoicesEndpoint()">Test /voices</button>
+            </div>
+            <div class="endpoint-result" id="voicesResultContainer">// Available voice list catalog will appear here...</div>
+            
+            <!-- Interactive Voices Quick-Picker -->
+            <div id="voicesCatalogWrapper" style="display: none;">
+              <span class="voice-group-title">Quick Apply Voice From Catalog:</span>
+              <div class="voices-catalog" id="quickVoicesCatalog"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Live Event Stream & Diagnostics Panel -->
+      <div class="panel" style="flex: 1;">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📜 Live Event Stream & Diagnostics</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;" onclick="clearEventLogs()">Clear</button>
+          </div>
+        </div>
+
+        <div class="panel-body" style="padding: 12px;">
+          <div class="log-container" id="eventLogBox">
+            <div class="log-row">
+              <span class="log-time">[00:00:00]</span>
+              <span class="log-tag tag-ws">INIT</span>
+              <span class="log-text">Workbench initialized. Ready to connect.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <footer>
+    Kokoro-82M High-Speed Streaming Text-to-Speech &bull; Self-contained API Verification Tool
+  </footer>
+</div>
+
+<script>
+  /* =========================================================================
+     Global Application State
+     ========================================================================= */
+  let ws = null;
+  let audioCtx = null;
+  let gainNode = null;
+  let nextScheduledAudioTime = 0;
+  let activeAudioSources = [];
+  let recordedPcmChunks = []; // Stores Int16Arrays to allow WAV download
+
+  let isStreamingActive = false;
+  let streamStartTime = 0;
+  let firstAudioPacketReceived = false;
+  let receivedChunkCounter = 0;
+  let cachedCatalogVoices = null;
+
+  // Auto-detect default server URL
+  function getDefaultServerUrl() {
+    if (window.location.protocol.startsWith('http') && window.location.host) {
+      return `${window.location.protocol}//${window.location.host}`;
+    }
+    return 'http://localhost:8001';
+  }
+
+  const hostInput = document.getElementById('serverHostInput');
+  hostInput.value = getDefaultServerUrl();
+
+  function getBaseHttpUrl() {
+    let raw = hostInput.value.trim();
+    if (!raw) raw = 'http://localhost:8001';
+    return raw.replace(/\/+$/, '');
+  }
+
+  function getBaseWsUrl() {
+    const httpUrl = getBaseHttpUrl();
+    if (httpUrl.startsWith('https://')) {
+      return httpUrl.replace('https://', 'wss://');
+    }
+    return httpUrl.replace('http://', 'ws://');
+  }
+
+  /* =========================================================================
+     Logging Utility
+     ========================================================================= */
+  function addLog(tag, message, tagClass = 'tag-ws', isDim = false) {
+    const box = document.getElementById('eventLogBox');
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+
+    const row = document.createElement('div');
+    row.className = 'log-row';
+    row.innerHTML = `
+      <span class="log-time">[${timeStr}]</span>
+      <span class="log-tag ${tagClass}">${tag}</span>
+      <span class="log-text ${isDim ? 'log-dim' : ''}">${escapeHtml(message)}</span>
+    `;
+
+    box.appendChild(row);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function clearEventLogs() {
+    document.getElementById('eventLogBox').innerHTML = '';
+    addLog('SYSTEM', 'Log cleared', 'tag-ws', true);
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  /* =========================================================================
+     Audio Pipeline (Web Audio API & Gapless Scheduling)
+     ========================================================================= */
+  function initAudioEngine() {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContextClass({ sampleRate: 24000 });
+      gainNode = audioCtx.createGain();
+      gainNode.gain.value = parseFloat(document.getElementById('volumeControl').value);
+      gainNode.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+
+  function setAudioVolume(val) {
+    if (gainNode) {
+      gainNode.gain.value = parseFloat(val);
+    }
+  }
+
+  function setVisualizerActive(active) {
+    const viz = document.getElementById('visualizer');
+    const statusText = document.getElementById('audioStatusText');
+    if (active) {
+      viz.classList.add('active');
+      statusText.innerText = 'Audio Output: Synthesizing & Playing...';
+    } else {
+      viz.classList.remove('active');
+      statusText.innerText = 'Audio Output: Ready (24kHz Mono)';
+    }
+  }
+
+  function playLinearPcmChunk(int16Array) {
+    initAudioEngine();
+    setVisualizerActive(true);
+
+    // Save for download
+    recordedPcmChunks.push(new Int16Array(int16Array));
+    document.getElementById('downloadWavBtn').disabled = false;
+
+    // Convert Int16 to Float32 [-1.0, 1.0]
+    const float32Array = new Float32Array(int16Array.length);
+    for (let i = 0; i < int16Array.length; i++) {
+      float32Array[i] = int16Array[i] / 32768.0;
+    }
+
+    const audioBuffer = audioCtx.createBuffer(1, float32Array.length, 24000);
+    audioBuffer.copyToChannel(float32Array, 0);
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(gainNode);
+
+    // Smooth gapless concatenation
+    const now = audioCtx.currentTime;
+    if (nextScheduledAudioTime < now) {
+      nextScheduledAudioTime = now + 0.02; // Small cushion to prevent underruns
+    }
+
+    source.start(nextScheduledAudioTime);
+    nextScheduledAudioTime += audioBuffer.duration;
+    activeAudioSources.push(source);
+
+    source.onended = () => {
+      const idx = activeAudioSources.indexOf(source);
+      if (idx !== -1) activeAudioSources.splice(idx, 1);
+      if (activeAudioSources.length === 0 && !isStreamingActive) {
+        setVisualizerActive(false);
+      }
+    };
+  }
+
+  function playWavContainerChunk(arrayBuffer) {
+    initAudioEngine();
+    setVisualizerActive(true);
+
+    audioCtx.decodeAudioData(arrayBuffer.slice(0), (audioBuffer) => {
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(gainNode);
+
+      const now = audioCtx.currentTime;
+      if (nextScheduledAudioTime < now) {
+        nextScheduledAudioTime = now + 0.02;
+      }
+      source.start(nextScheduledAudioTime);
+      nextScheduledAudioTime += audioBuffer.duration;
+      activeAudioSources.push(source);
+
+      source.onended = () => {
+        const idx = activeAudioSources.indexOf(source);
+        if (idx !== -1) activeAudioSources.splice(idx, 1);
+        if (activeAudioSources.length === 0 && !isStreamingActive) {
+          setVisualizerActive(false);
+        }
+      };
+    }, (err) => {
+      addLog('AUDIO-ERR', `WAV chunk decode failure: ${err}`, 'tag-err');
+    });
+  }
+
+  function stopAudioPlaybackNow() {
+    activeAudioSources.forEach(s => {
+      try { s.stop(); } catch(e) {}
+    });
+    activeAudioSources = [];
+    nextScheduledAudioTime = 0;
+    setVisualizerActive(false);
+    addLog('AUDIO', 'Audio playback stopped', 'tag-audio');
+  }
+
+  /* =========================================================================
+     WebSocket Connection & Lifecycle
+     ========================================================================= */
+  function ensureWebSocketConnected() {
+    return new Promise((resolve, reject) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        resolve(ws);
+        return;
+      }
+
+      if (ws && ws.readyState === WebSocket.CONNECTING) {
+        const checkInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            clearInterval(checkInterval);
+            resolve(ws);
+          } else if (ws.readyState === WebSocket.CLOSED) {
+            clearInterval(checkInterval);
+            reject(new Error("WebSocket closed while connecting"));
+          }
+        }, 50);
+        return;
+      }
+
+      const wsBase = getBaseWsUrl();
+      const route = document.getElementById('endpointRoute').value;
+      const voice = getEffectiveVoice();
+      const speed = document.getElementById('speedRange').value;
+      const format = document.getElementById('formatSelect').value;
+      const lang = document.getElementById('langSelect').value;
+
+      const fullWsUrl = `${wsBase}${route}?voice=${encodeURIComponent(voice)}&speed=${speed}&format=${format}&lang=${lang}`;
+      
+      updateGlobalStatus('connecting', 'Connecting WS...');
+      addLog('WS', `Connecting to: ${fullWsUrl}`, 'tag-ws');
+
+      try {
+        ws = new WebSocket(fullWsUrl);
+        ws.binaryType = 'arraybuffer';
+      } catch (err) {
+        updateGlobalStatus('disconnected', 'WS Failed');
+        addLog('WS-ERR', `Init error: ${err.message}`, 'tag-err');
+        reject(err);
+        return;
+      }
+
+      ws.onopen = () => {
+        updateGlobalStatus('connected', 'WS Connected');
+        addLog('WS', 'Connected to WebSocket streaming TTS endpoint!', 'tag-ws');
+        resolve(ws);
+      };
+
+      ws.onclose = (evt) => {
+        updateGlobalStatus('disconnected', 'WS Disconnected');
+        addLog('WS', `Connection closed (Code: ${evt.code})`, 'tag-ws', true);
+        finishStreamingUI();
+      };
+
+      ws.onerror = (err) => {
+        updateGlobalStatus('disconnected', 'WS Error');
+        addLog('WS-ERR', 'WebSocket communication error', 'tag-err');
+      };
+
+      ws.onmessage = (evt) => {
+        handleIncomingMessage(evt);
+      };
+    });
+  }
+
+  function handleIncomingMessage(evt) {
+    if (typeof evt.data === 'string') {
+      try {
+        const msg = JSON.parse(evt.data);
+        handleServerJsonEvent(msg);
+      } catch (e) {
+        addLog('WS-RECV', evt.data, 'tag-ws');
+      }
+    } else if (evt.data instanceof ArrayBuffer) {
+      handleServerBinaryAudio(evt.data);
+    }
+  }
+
+  function handleServerJsonEvent(msg) {
+    const type = msg.type;
+
+    if (type === 'connected') {
+      addLog('HANDSHAKE', `Device: ${msg.device?.toUpperCase()} | SampleRate: ${msg.sample_rate}Hz | Format: ${msg.format} | Voice: ${msg.voice}`, 'tag-ws');
+    } else if (type === 'chunk_start') {
+      addLog('SYNTH', `Synthesizing Chunk #${msg.chunk_id}: "${msg.text}"`, 'tag-synth');
+    } else if (type === 'chunk_end') {
+      addLog('CHUNK-OK', `Chunk #${msg.chunk_id} ready in ${msg.latency_ms}ms (Duration: ${msg.duration_sec}s, RTF: ${msg.rtf}x)`, 'tag-synth');
+    } else if (type === 'audio') {
+      // JSON format audio (Base64 PCM16)
+      addLog('AUDIO-JSON', `Chunk #${msg.chunk_id} base64 payload received (${msg.duration_sec}s)`, 'tag-audio');
+      onFirstAudioArrival();
+      receivedChunkCounter++;
+      document.getElementById('metricChunks').innerText = receivedChunkCounter;
+
+      const binaryStr = window.atob(msg.audio_base64);
+      const len = binaryStr.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      playLinearPcmChunk(new Int16Array(bytes.buffer));
+
+    } else if (type === 'done') {
+      addLog('DONE', `Turn completed! Chunks: ${msg.total_chunks} | Audio: ${msg.total_duration_sec}s | Synth Time: ${msg.total_synthesis_time_sec}s | RTF: ${msg.rtf}x`, 'tag-audio');
+      document.getElementById('metricDuration').innerText = `${msg.total_duration_sec}s`;
+      document.getElementById('metricSynthTime').innerText = `${msg.total_synthesis_time_sec}s`;
+      document.getElementById('metricRtf').innerText = `${msg.rtf}x`;
+      finishStreamingUI();
+    } else if (type === 'interrupted') {
+      addLog('INTERRUPT', 'Server acknowledged barge-in interruption. Generation stopped.', 'tag-err');
+      stopAudioPlaybackNow();
+      finishStreamingUI();
+    } else if (type === 'pong') {
+      addLog('PONG', 'Received Pong response from server', 'tag-ws');
+    } else if (type === 'config_updated') {
+      addLog('CONFIG', `Dynamic config applied: voice=${msg.voice}, speed=${msg.speed}, format=${msg.format}`, 'tag-ws');
+    } else if (type === 'error') {
+      addLog('ERROR', `Server error on Chunk #${msg.chunk_id}: ${msg.error}`, 'tag-err');
+      finishStreamingUI();
+    } else {
+      addLog('WS-MSG', JSON.stringify(msg), 'tag-ws');
+    }
+  }
+
+  function handleServerBinaryAudio(arrayBuffer) {
+    onFirstAudioArrival();
+    receivedChunkCounter++;
+    document.getElementById('metricChunks').innerText = receivedChunkCounter;
+
+    const currentFormat = document.getElementById('formatSelect').value;
+    if (currentFormat === 'wav') {
+      playWavContainerChunk(arrayBuffer);
+    } else {
+      // Default: Raw 16-bit linear PCM
+      playLinearPcmChunk(new Int16Array(arrayBuffer));
+    }
+  }
+
+  function onFirstAudioArrival() {
+    if (!firstAudioPacketReceived) {
+      firstAudioPacketReceived = true;
+      const ttfaMs = Math.round(performance.now() - streamStartTime);
+      document.getElementById('metricTtfa').innerText = `${ttfaMs} ms`;
+      addLog('TTFA', `Time To First Audio: ${ttfaMs} ms!`, 'tag-audio');
+    }
+  }
+
+  /* =========================================================================
+     LLM Token Streaming Simulation
+     ========================================================================= */
+  async function startStreamingSimulation() {
+    const rawText = document.getElementById('textInput').value.trim();
+    if (!rawText) {
+      alert('Please enter some text to synthesize.');
+      return;
+    }
+
+    try {
+      await ensureWebSocketConnected();
+    } catch (err) {
+      alert(`Could not connect to WebSocket. Check server host (${getBaseHttpUrl()}).`);
+      return;
+    }
+
+    initAudioEngine();
+    isStreamingActive = true;
+    firstAudioPacketReceived = false;
+    receivedChunkCounter = 0;
+    recordedPcmChunks = []; // Clear for new session
+
+    document.getElementById('metricTtfa').innerText = 'waiting...';
+    document.getElementById('metricChunks').innerText = '0';
+    document.getElementById('metricDuration').innerText = '-';
+    document.getElementById('metricSynthTime').innerText = '-';
+    document.getElementById('metricRtf').innerText = '-';
+
+    document.getElementById('streamBtn').disabled = true;
+    document.getElementById('interruptBtn').disabled = false;
+    document.getElementById('flushBtn').disabled = false;
+    document.getElementById('downloadWavBtn').disabled = true;
+
+    const delayMs = parseInt(document.getElementById('tokenDelaySelect').value);
+    const sendMode = document.getElementById('chunkSendMode').value;
+
+    // Tokenize into word-like chunks with whitespace preserved
+    const tokens = rawText.match(/\S+\s*/g) || [rawText];
+    document.getElementById('tokenCountTag').innerText = `${tokens.length} tokens`;
+
+    addLog('STREAM', `Starting streaming turn (${tokens.length} tokens, ${delayMs}ms token delay)...`, 'tag-ws');
+    streamStartTime = performance.now();
+
+    for (const token of tokens) {
+      if (!isStreamingActive) break;
+
+      if (sendMode === 'json') {
+        ws.send(JSON.stringify({ type: 'text', text: token }));
+      } else {
+        ws.send(token);
+      }
+
+      if (delayMs > 0) {
+        await new Promise(res => setTimeout(res, delayMs));
+      }
+    }
+
+    if (isStreamingActive) {
+      // Signal turn complete to flush remaining text in accumulator
+      if (sendMode === 'json') {
+        ws.send(JSON.stringify({ type: 'flush' }));
+      } else {
+        ws.send('<FLUSH>');
+      }
+      addLog('STREAM', 'Sent <FLUSH> command to finalize turn synthesis.', 'tag-ws', true);
+    }
+  }
+
+  function sendInterrupt() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'interrupt' }));
+    }
+    stopAudioPlaybackNow();
+    finishStreamingUI();
+  }
+
+  function sendFlushCommand() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'flush' }));
+      addLog('WS', 'Manually sent {"type": "flush"}', 'tag-ws');
+    }
+  }
+
+  function sendPingWebSocket() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ping' }));
+      addLog('PING', 'Sent ping to WebSocket', 'tag-ws');
+    } else {
+      ensureWebSocketConnected().then(() => {
+        ws.send(JSON.stringify({ type: 'ping' }));
+        addLog('PING', 'Connected & sent ping to WebSocket', 'tag-ws');
+      });
+    }
+  }
+
+  function finishStreamingUI() {
+    isStreamingActive = false;
+    document.getElementById('streamBtn').disabled = false;
+    document.getElementById('interruptBtn').disabled = true;
+    document.getElementById('flushBtn').disabled = true;
+  }
+
+  /* =========================================================================
+     Dynamic Configuration Controls
+     ========================================================================= */
+  function getEffectiveVoice() {
+    const select = document.getElementById('voiceSelect');
+    if (select.value === '__custom__') {
+      return document.getElementById('customBlendInput').value.trim() || 'af_heart';
+    }
+    return select.value;
+  }
+
+  function onVoiceSelectChanged() {
+    const select = document.getElementById('voiceSelect');
+    const customField = document.getElementById('customBlendField');
+    if (select.value === '__custom__') {
+      customField.style.display = 'flex';
+    } else {
+      customField.style.display = 'none';
+      document.getElementById('voiceValTag').innerText = select.value;
+      sendDynamicConfig({ voice: select.value });
+    }
+  }
+
+  function applyCustomBlend() {
+    const blend = document.getElementById('customBlendInput').value.trim();
+    if (blend) {
+      document.getElementById('voiceValTag').innerText = blend;
+      sendDynamicConfig({ voice: blend });
+    }
+  }
+
+  function onSpeedChanged(val) {
+    const formatted = parseFloat(val).toFixed(2);
+    document.getElementById('speedDisplay').innerText = `${formatted}x`;
+    sendDynamicConfig({ speed: parseFloat(val) });
+  }
+
+  function onFormatChanged() {
+    const fmt = document.getElementById('formatSelect').value;
+    sendDynamicConfig({ format: fmt });
+    // If format changes, reconnect ws on next run
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+  }
+
+  function sendDynamicConfig(configObj) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'config', ...configObj }));
+    }
+  }
+
+  function updateGlobalStatus(state, label) {
+    const dot = document.getElementById('globalStatusDot');
+    const txt = document.getElementById('globalStatusText');
+    dot.className = `dot ${state}`;
+    txt.innerText = label;
+  }
+
+  /* =========================================================================
+     REST Endpoints (/health, /voices)
+     ========================================================================= */
+  async function fetchHealthEndpoint() {
+    const base = getBaseHttpUrl();
+    const url = `${base}/health`;
+    addLog('HTTP', `GET ${url}`, 'tag-http');
+
+    const container = document.getElementById('healthResultContainer');
+    container.innerText = "Loading /health...";
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      container.innerText = JSON.stringify(data, null, 2);
+      addLog('HEALTH-OK', `Device: ${data.device.toUpperCase()} | CUDA: ${data.cuda_available} | Uptime: ${data.uptime_seconds}s`, 'tag-http');
+      updateGlobalStatus('connected', `Online (${data.device.toUpperCase()})`);
+      return data;
+    } catch (err) {
+      container.innerText = `❌ Error: ${err.message}\nMake sure your Kokoro API server is running at:\n${base}`;
+      addLog('HEALTH-ERR', err.message, 'tag-err');
+      updateGlobalStatus('disconnected', 'Server Offline');
+      throw err;
+    }
+  }
+
+  async function fetchVoicesEndpoint() {
+    const base = getBaseHttpUrl();
+    const url = `${base}/voices`;
+    addLog('HTTP', `GET ${url}`, 'tag-http');
+
+    const container = document.getElementById('voicesResultContainer');
+    container.innerText = "Loading /voices...";
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      container.innerText = JSON.stringify(data, null, 2);
+      addLog('VOICES-OK', `Retrieved voice catalog. Flagship: ${data.recommended_flagship}`, 'tag-http');
+      cachedCatalogVoices = data;
+      renderQuickVoicesCatalog(data);
+      return data;
+    } catch (err) {
+      container.innerText = `❌ Error: ${err.message}`;
+      addLog('VOICES-ERR', err.message, 'tag-err');
+      throw err;
+    }
+  }
+
+  function renderQuickVoicesCatalog(data) {
+    if (!data || !data.categories) return;
+    const wrapper = document.getElementById('voicesCatalogWrapper');
+    const target = document.getElementById('quickVoicesCatalog');
+    target.innerHTML = '';
+    wrapper.style.display = 'block';
+
+    for (const [categoryName, voices] of Object.entries(data.categories)) {
+      const catTitle = document.createElement('div');
+      catTitle.className = 'voice-group-title';
+      catTitle.innerText = categoryName.replace(/_/g, ' ');
+      target.appendChild(catTitle);
+
+      const chipsContainer = document.createElement('div');
+      chipsContainer.className = 'voice-chips-container';
+
+      for (const voiceId of voices) {
+        const chip = document.createElement('button');
+        chip.className = 'voice-chip';
+        chip.innerText = voiceId;
+        chip.title = `Click to select voice "${voiceId}"`;
+        chip.onclick = () => selectVoiceFromChip(voiceId);
+        chipsContainer.appendChild(chip);
+      }
+      target.appendChild(chipsContainer);
+    }
+  }
+
+  function selectVoiceFromChip(voiceId) {
+    const select = document.getElementById('voiceSelect');
+    let exists = false;
+    for (let opt of select.options) {
+      if (opt.value === voiceId) {
+        select.value = voiceId;
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) {
+      // Add option dynamically
+      const newOpt = new Option(voiceId, voiceId, true, true);
+      select.add(newOpt);
+    }
+    onVoiceSelectChanged();
+    addLog('VOICE', `Selected voice: ${voiceId}`, 'tag-synth');
+  }
+
+  async function checkAllEndpoints() {
+    updateGlobalStatus('connecting', 'Probing...');
+    try {
+      await fetchHealthEndpoint();
+      await fetchVoicesEndpoint();
+    } catch (e) {
+      // Handled in individual functions
+    }
+  }
+
+  /* =========================================================================
+     Prompt Presets
+     ========================================================================= */
+  function setSamplePrompt(type) {
+    const textarea = document.getElementById('textInput');
+    if (type === 1) {
+      textarea.value = "Well... to be completely honest, I didn't expect that to happen! But don't worry, commas give me a brief moment to breathe, and exclamation marks bring genuine excitement!";
+    } else if (type === 2) {
+      textarea.value = "Hello! I am ready to assist you right away. What would you like to explore next?";
+    } else if (type === 3) {
+      textarea.value = "The ancient library was quiet, save for the crackle of distant thunder. Deep beneath the marble floors, ancient machines hummed softly, awaiting a command that had not been spoken in centuries.";
+    } else if (type === 4) {
+      textarea.value = "Kokoro-82M operates with an eight-two million parameter architecture, producing twenty-four kilohertz linear audio chunks in sub-hundred millisecond real-time factor.";
+    }
+  }
+
+  /* =========================================================================
+     Audio WAV Exporter
+     ========================================================================= */
+  function downloadRecordedAudio() {
+    if (recordedPcmChunks.length === 0) {
+      alert("No audio recorded in the current session.");
+      return;
+    }
+
+    let totalSamples = 0;
+    for (const chunk of recordedPcmChunks) {
+      totalSamples += chunk.length;
+    }
+
+    const wavBlob = createWavBlob(recordedPcmChunks, totalSamples, 24000);
+    const url = URL.createObjectURL(wavBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kokoro_speech_${Date.now()}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addLog('DOWNLOAD', `Downloaded ${totalSamples} samples as WAV file.`, 'tag-audio');
+  }
+
+  function createWavBlob(int16Chunks, totalSamples, sampleRate) {
+    const buffer = new ArrayBuffer(44 + totalSamples * 2);
+    const view = new DataView(buffer);
+
+    // RIFF identifier
+    writeAscii(view, 0, 'RIFF');
+    view.setUint32(4, 36 + totalSamples * 2, true);
+    writeAscii(view, 8, 'WAVE');
+
+    // fmt sub-chunk
+    writeAscii(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);          // SubChunk1Size (16 for PCM)
+    view.setUint16(20, 1, true);           // AudioFormat (1 = PCM)
+    view.setUint16(22, 1, true);           // NumChannels (1 = Mono)
+    view.setUint32(24, sampleRate, true);  // SampleRate
+    view.setUint32(28, sampleRate * 2, true); // ByteRate (SampleRate * 1 * 16/8)
+    view.setUint16(32, 2, true);           // BlockAlign (1 * 16/8)
+    view.setUint16(34, 16, true);          // BitsPerSample (16-bit)
+
+    // data sub-chunk
+    writeAscii(view, 36, 'data');
+    view.setUint32(40, totalSamples * 2, true);
+
+    // Write samples
+    let offset = 44;
+    for (const chunk of int16Chunks) {
+      for (let i = 0; i < chunk.length; i++, offset += 2) {
+        view.setInt16(offset, chunk[i], true);
+      }
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+  }
+
+  function writeAscii(view, offset, str) {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  }
+
+  // Automatic initial probe on load
+  window.addEventListener('DOMContentLoaded', () => {
+    checkAllEndpoints();
+  });
+</script>
+
+</body>
+</html>
