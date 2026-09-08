@@ -48,7 +48,6 @@ RUN pip install --upgrade pip setuptools wheel && \
 RUN python3 -c "from kokoro import KPipeline; KPipeline(lang_code='a', device='cpu')"
 
 # Copy application source code
-COPY TTS.py .
 COPY api.py .
 COPY client_example.py .
 COPY README.md .
