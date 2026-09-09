@@ -6,7 +6,7 @@ in Google Colab (with GPU/CUDA or CPU), featuring:
   - Automatic dependency installation (kokoro, soundfile, espeak-ng)
   - Seamless inline IPython audio playback in Colab notebook cells
   - Intelligent conversational chunking preserving natural pauses & inflections
-  - 50+ Kokoro-82M voices with support for voice blending (e.g. 'af_heart(0.7)+af_bella(0.3)')
+  - 50+ Kokoro-82M voices with support for voice blending (e.g. 'af_heart,af_bella' -> equal-weight average; no per-voice weights supported)
   - GPU acceleration auto-detection (NVIDIA T4/A100/V100 on Colab)
   - Direct file download to your local machine
 
@@ -255,7 +255,7 @@ class KokoroTTS:
         Generator yielding audio chunks sequentially with latency metrics.
 
         :param text: Input text.
-        :param voice: Voice ID or blend (e.g., 'af_heart', 'am_adam', 'af_heart+af_bella').
+        :param voice: Voice ID or blend (e.g., 'af_heart', 'am_adam', 'af_heart,af_bella').
         :param speed: Speech speed multiplier.
         :yield: (chunk_index, chunk_text, audio_numpy_array, latency_seconds).
         """
@@ -287,12 +287,14 @@ class KokoroTTS:
         """
         Derive a safe .wav filename from a voice identifier or blend string.
 
+        Kokoro blends multiple voices via a comma-separated list, e.g.
+        'af_heart,af_bella' (equal-weight average; no per-voice weights).
+
         Examples:
-            'af_heart'                        -> 'af_heart.wav'
-            'af_heart(0.7)+af_bella(0.3)'      -> 'af_heart_af_bella.wav'
+            'af_heart'              -> 'af_heart.wav'
+            'af_heart,af_bella'     -> 'af_heart_af_bella.wav'
         """
-        # Extract plain voice names, dropping blend weights like '(0.7)'
-        voice_names = re.findall(r'[A-Za-z0-9_]+(?=(?:\([^)]*\))?(?:\+|$))', voice)
+        voice_names = [v.strip() for v in voice.split(",") if v.strip()]
         safe_name = "_".join(voice_names) if voice_names else "output"
         return f"{safe_name}.wav"
 
@@ -431,7 +433,8 @@ class KokoroTTS:
             for voice_id, description in voices:
                 print(f"  • {voice_id:<12} : {description}")
         print("\n💡 Voice Blending Tip:")
-        print("  You can blend voices together! Example: 'af_heart(0.7)+af_bella(0.3)'")
+        print("  You can blend voices together with a comma-separated list (equal-weight")
+        print("  average; no per-voice weights). Example: 'af_heart,af_bella'")
         print("=" * 65 + "\n")
 
 
@@ -467,7 +470,7 @@ Examples in Google Colab:
   !python colab_tts.py
   !python colab_tts.py --voice am_adam --speed 1.05 --output my_speech.wav
   !python colab_tts.py --text "Hello Colab! Kokoro TTS is running on GPU." --download
-  !python colab_tts.py --voice "af_heart(0.6)+af_bella(0.4)"
+  !python colab_tts.py --voice "af_heart,af_bella"
   !python colab_tts.py --list-voices
         """
     )
@@ -487,7 +490,7 @@ Examples in Google Colab:
         "--voice", "-v",
         type=str,
         default="af_heart",
-        help="Voice identifier or blend string (default: af_heart)"
+        help="Voice identifier or comma-separated blend, e.g. 'af_heart,af_bella' (default: af_heart)"
     )
     parser.add_argument(
         "--speed", "-s",
