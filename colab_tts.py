@@ -282,10 +282,25 @@ class KokoroTTS:
             latency = time.time() - chunk_start
             yield idx, chunk, combined_chunk_audio, latency
 
+    @staticmethod
+    def voice_to_filename(voice: str) -> str:
+        """
+        Derive a safe .wav filename from a voice identifier or blend string.
+
+        Examples:
+            'af_heart'                        -> 'af_heart.wav'
+            'af_heart(0.7)+af_bella(0.3)'      -> 'af_heart_af_bella.wav'
+        """
+        # Extract plain voice names, dropping blend weights like '(0.7)'
+        voice_names = re.findall(r'[A-Za-z0-9_]+(?=(?:\([^)]*\))?(?:\+|$))', voice)
+        safe_name = "_".join(voice_names) if voice_names else "output"
+        return f"{safe_name}.wav"
+
     def synthesize(
         self,
         text: str,
-        output_file: Optional[str] = "output.wav",
+        output_file: Optional[str] = None,
+        output_dir: str = "output",
         voice: Optional[str] = None,
         speed: Optional[float] = None,
         pause_between_chunks_ms: int = 180,
@@ -297,7 +312,10 @@ class KokoroTTS:
         Synthesize speech from input text, save as WAV, and render in Google Colab.
 
         :param text: Full input text string.
-        :param output_file: Destination WAV filepath (or None to skip saving).
+        :param output_file: Destination WAV filepath (or None to auto-name after the voice,
+            e.g. 'af_heart.wav', saved inside `output_dir`).
+        :param output_dir: Folder the WAV file is saved into when `output_file` is a bare
+            filename or None (default: 'output').
         :param voice: Voice identifier or blend string.
         :param speed: Speech speed multiplier.
         :param pause_between_chunks_ms: Silence duration inserted between chunks.
@@ -308,6 +326,14 @@ class KokoroTTS:
         """
         selected_voice = voice or self.default_voice
         selected_speed = speed if speed is not None else self.speed
+
+        if output_file:
+            # If a bare filename (no directory component) was given, place it in output_dir.
+            if not os.path.dirname(output_file) and output_dir:
+                output_file = os.path.join(output_dir, output_file)
+        else:
+            filename = self.voice_to_filename(selected_voice)
+            output_file = os.path.join(output_dir, filename) if output_dir else filename
 
         chunks = self.chunk_text(text)
         total_chunks = len(chunks)
@@ -472,8 +498,14 @@ Examples in Google Colab:
     parser.add_argument(
         "--output", "-o",
         type=str,
-        default="output.wav",
-        help="Path to save the output WAV file (default: output.wav)"
+        default=None,
+        help="Path to save the output WAV file (default: <output-dir>/<voice>.wav, e.g. output/af_heart.wav)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="output",
+        help="Folder to save the output WAV file into (default: output)"
     )
     parser.add_argument(
         "--lang", "-l",
@@ -529,6 +561,7 @@ Examples in Google Colab:
     tts.synthesize(
         text=text_to_speak,
         output_file=args.output,
+        output_dir=args.output_dir,
         voice=args.voice,
         speed=args.speed,
         play_inline=not args.no_play,
